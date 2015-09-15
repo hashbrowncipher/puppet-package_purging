@@ -40,6 +40,9 @@ EOD
       ['apt', 'aptitude'].include?(p.provider.class.name.to_s)
     end.partition { |r| catalog_packages.include? r }
 
+    managed_package_names = managed_packages.map(&:name)
+    unmanaged_package_names = unmanaged_packages.map(&:name)
+
     unless (catalog_packages - managed_packages).empty?
       warning <<EOS
 It isn't safe to purge packages right now, because there are packages in the
