@@ -5,13 +5,14 @@ describe 'package_purging_with_apt' do
   context "With existing packages on the system" do
     before :all do
       pp = <<-EOS
-        apply_purge {}
+        package { 'ubuntu-minimal': }
+        aptly_purge { 'packages': }
       EOS
       apply_manifest(pp, :expect_changes => true)
     end
 
-    describe port(389) do
-      it { is_expected.to be_listening }
+    describe package('openssh-server') do
+      it { should_not be_installed }
     end
   end
 
