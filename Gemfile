@@ -11,7 +11,8 @@ group :development, :unit_tests do
 end
 
 group :system_tests do
-  gem 'beaker',              :require => false
+  #gem 'beaker',              :require => false
+  gem 'beaker', github: 'puppetlabs/beaker', branch: 'master'
   gem 'beaker-rspec',        :require => false
   gem 'beaker_spec_helper',  :require => false
   gem 'serverspec',          :require => false
