@@ -40,6 +40,9 @@ EOD
       ['apt', 'aptitude'].include?(p.provider.class.name.to_s)
     end.partition { |r| catalog_packages.include? r }
 
+    managed_package_names = managed_packages.map(&:name)
+    unmanaged_package_names = unmanaged_packages.map(&:name)
+
     unless (catalog_packages - managed_packages).empty?
       warning <<EOS
 It isn't safe to purge packages right now, because there are packages in the
@@ -49,41 +52,6 @@ EOS
       raise Puppet::Error.new("Could not purge packages during this Puppet run")
     end
 
-    managed_package_names = managed_packages.map(&:name)
-    unmanaged_package_names = unmanaged_packages.map(&:name)
-
-    outfile = "/dev/null"
-
-    if safe_to_purge managed_package_names outfile
-      build_purgeable_packages managed_package_names unmanaged_package_names outfile
-    else
-      #TODO: Should we do something here to mark the resource as failed?
-      # By standard notions of convergence, we aren't converged in this case.
-      puts<<EOS
-It isn't safe to purge packages right now, because there are packages in the
-catalog that haven't yet been installed. Package purging is skipped for this
-Puppet run.
-EOS
-      []
-    end
-  end
-
-  private
-
-  def safe_to_purge(managed_packages, outfile)
-    # This is especially important for the case where the dependency resolver
-    # or a crazy sysadmin has uninstalled a package that Puppet is responsible
-    # for. In that case, we would otherwise would remove all of that package's
-    # dependencies. Since we don't want that, we'll skip package purging on
-    # this run.
-    Open3.pipeline_w('xargs dpkg-query -W', :out=>outfile) do |i, ts|
-      i.puts(managed_packages)
-      i.close
-      ts[0].value.success?
-    end
-  end
-
-  def build_purgeable_packages(managed, unmanaged, outfile)
     # If we don't set managed packages to noauto here, it is possible to
     # set ensure=>absent on an unmanaged package that a managed package
     # depends on.
