@@ -23,22 +23,24 @@ EOD
   end
 
   def generate
+    outfile = "/dev/stdout"
     package = Puppet::Type.type(:package)
 
-    outfile = "/dev/stdout"
+    unless all_packages_synced
+      warning <<EOS
 
-    # Get the list of all packages the Catalog thinks it should manage
-    catalog_packages = catalog.resources.find_all do |r|
-      # Packages with no provider set are assumed to be under our purview
-      r.is_a?(package) and r[:ensure] != 'absent' and
-      r.provider.is_a?(Puppet::Type::Package::ProviderDpkg)
-    end.to_set
+It isn't safe to purge packages right now, because there are packages in the
+catalog that aren't synced on the system. Package purging is skipped for this
+Puppet run.
+EOS
+      raise Puppet::Error.new("Could not purge packages during this Puppet run")
+    end
 
     # Using the RAL, divide the world into Catalog packages and not-Catalog
     # packages.
     (managed_packages, unmanaged_packages) = package.instances.select do |p|
-      ['apt', 'aptitude'].include?(p.provider.class.name.to_s)
-    end.partition { |r| catalog_packages.include? r }
+      p.provider.is_a?(Puppet::Type::Package::ProviderDpkg)
+    end.partition { |r| catalog.resource_refs.include? r.ref }
 
     managed_package_names = managed_packages.map(&:name)
     unmanaged_package_names = unmanaged_packages.map(&:name)
@@ -86,6 +88,18 @@ EOS
   end
 
   private
+
+  def all_packages_synced
+    package = Puppet::Type.type(:package)
+    catalog.resources.find_all do |r|
+      r.is_a?(package) and
+      r.provider.is_a?(Puppet::Type::Package::ProviderDpkg)
+    end.all? do |r|
+      ensure_p = r.parameters[:ensure]
+      is = ensure_p.retrieve
+      ensure_p.insync?(is)
+    end
+  end
 
   def mark_manual(packages, outfile)
     Open3.pipeline_w('xargs apt-mark manual', :out=>outfile) do |i, ts|

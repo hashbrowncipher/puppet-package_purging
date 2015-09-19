@@ -33,6 +33,7 @@ describe Puppet::Type.type(:aptly_purge) do
   end
 
   it "correctly marks packages in the catalog as manually installed" do
+    @purge.stub(:all_packages_synced) { true }
     @test_package = @package.new(:name => 'test_package')
     @catalog.add_resource @test_package
     @package.stub(:instances) { [@existing_package, @test_package] }
