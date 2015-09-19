@@ -45,6 +45,15 @@ EOS
     managed_package_names = managed_packages.map(&:name)
     unmanaged_package_names = unmanaged_packages.map(&:name)
 
+    unless (catalog_packages - managed_packages).empty?
+      warning <<EOS
+It isn't safe to purge packages right now, because there are packages in the
+catalog that aren't present on the system. Package purging is skipped for this
+Puppet run.
+EOS
+      raise Puppet::Error.new("Could not purge packages during this Puppet run")
+    end
+
     # If we don't set managed packages to noauto here, it is possible to
     # set ensure=>absent on an unmanaged package that a managed package
     # depends on.
