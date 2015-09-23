@@ -23,7 +23,7 @@ EOD
   end
 
   def generate
-    outfile = "/dev/stdout"
+    outfile = "/dev/null"
     package = Puppet::Type.type(:package)
 
     unless all_packages_synced
