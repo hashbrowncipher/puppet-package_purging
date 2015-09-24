@@ -5,7 +5,10 @@ describe Puppet::Type.type(:aptly_purge) do
     @catalog = Puppet::Resource::Catalog.new
     @package = Puppet::Type.type(:package)
 
-    @purge = Puppet::Type.type(:aptly_purge).new(:title => 'packages')
+    @purge = Puppet::Type.type(:aptly_purge).new(
+      :title => 'packages',
+      :debug => true
+    )
     @catalog.add_resource @purge
 
     @existing_package = @package.new(:name => 'existing_package')

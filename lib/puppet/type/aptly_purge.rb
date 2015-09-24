@@ -1,5 +1,6 @@
-require 'set'
 require 'open3'
+require 'puppet/parameter/boolean'
+require 'set'
 
 Puppet::Type.newtype(:aptly_purge) do
   @doc = <<-EOD
@@ -22,8 +23,20 @@ EOD
     isnamevar
   end
 
+  newparam(:debug, :boolean => false, :parent => Puppet::Parameter::Boolean)
+
+  newparam(:whitelist) do
+    validate do |value|
+      unless value.is_a? Array
+        raise ArgumentError, "whitelist must be a list"
+      else
+        super
+      end
+    end
+  end
+
   def generate
-    outfile = "/dev/null"
+    outfile = @parameters[:debug] ? "/dev/stdout" : "/dev/null"
     package = Puppet::Type.type(:package)
 
     unless all_packages_synced
@@ -64,10 +77,13 @@ EOS
 
     apt_would_purge = get_purges()
 
+    whitelist = @parameters[:whitelist]
+
     unmanaged_packages.select do |r|
       # This is the crux.  We intersect the list of packages Puppet isn't
       # managing with the list of packages that apt would purge.
-      apt_would_purge.include?(r.name)
+      apt_would_purge.include?(r.name) and
+      (whitelist.nil? or whitelist.include?(r.name))
     end.each do |resource|
       resource[:ensure] = 'absent'
       @parameters.each do |name, param|
