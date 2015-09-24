@@ -25,7 +25,7 @@ EOD
 
   newparam(:debug, :boolean => false, :parent => Puppet::Parameter::Boolean)
 
-  newparam(:whitelist) do
+  newparam(:whitelist, :array_matching => :all) do
     validate do |value|
       unless value.is_a? Array
         raise ArgumentError, "whitelist must be a list"
