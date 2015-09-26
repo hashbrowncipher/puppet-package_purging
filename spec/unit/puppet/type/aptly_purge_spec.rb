@@ -45,3 +45,40 @@ describe Puppet::Type.type(:aptly_purge) do
   end
 
 end
+
+describe Puppet::Type.type(:aptly_purge) do
+  before :each do
+    @catalog = Puppet::Resource::Catalog.new
+    @package = Puppet::Type.type(:package)
+
+    @purge = Puppet::Type.type(:aptly_purge).new(
+      :title => 'packages',
+      :debug => true,
+      :whitelist => [
+        'testpackage',
+        'blah',
+      ],
+    )
+    @catalog.add_resource @purge
+
+    @package_to_stay = @package.new(:name => 'package_to_stay')
+    @package_to_be_removed = @package.new(:name => 'testpackage')
+    @package.stub(:instances) { [
+      @package_to_stay,
+      @package_to_be_removed
+    ] }
+
+    @purge.stub(:mark_manual)
+    @purge.stub(:mark_auto)
+    @purge.stub(:unhold)
+    @purge.stub(:get_purges) { [
+      'package_to_stay',
+      'testpackage',
+    ].to_set }
+  end
+
+  it "decides to remove whitelisted packages" do
+    @purge.stub(:all_packages_synced) { true }
+    expect(@purge.generate).to eql([@package_to_be_removed])
+  end
+end

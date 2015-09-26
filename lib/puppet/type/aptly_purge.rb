@@ -23,14 +23,16 @@ EOD
     isnamevar
   end
 
-  newparam(:debug, :boolean => false, :parent => Puppet::Parameter::Boolean)
+  newparam(:debug, :boolean => true, :parent => Puppet::Parameter::Boolean) do
+    defaultto false
+  end
 
   newparam(:whitelist, :array_matching => :all) do
     validate do |value|
       unless value.is_a? Array
         raise ArgumentError, "whitelist must be a list"
       else
-        super
+        super value
       end
     end
   end
@@ -78,6 +80,9 @@ EOS
     apt_would_purge = get_purges()
 
     whitelist = @parameters[:whitelist]
+    unless whitelist.nil? then
+      whitelist = whitelist.value.to_set
+    end
 
     unmanaged_packages.select do |r|
       # This is the crux.  We intersect the list of packages Puppet isn't
