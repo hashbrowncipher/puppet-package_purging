@@ -58,9 +58,10 @@ EOS
     # Then dpkg will remove both A and B.  This is bad!
     mark_manual managed_package_names, outfile
 
-    # It would be excellent to set 'apt-mark hold' on all managed packages
-    # here, but it turns out this doesn't interact well with dpkg based
-    # package providers.
+    #TODO: only hold packages that aren't ensure=>latest.
+    #TODO: if you're really going to do it right, set this at the package
+    # provider level. There's no reason holding needs to go within the
+    # generate() hackery.
     hold managed_package_names, outfile
 
     mark_auto unmanaged_package_names, outfile
