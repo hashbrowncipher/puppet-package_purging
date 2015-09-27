@@ -61,6 +61,7 @@ EOS
     # It would be excellent to set 'apt-mark hold' on all managed packages
     # here, but it turns out this doesn't interact well with dpkg based
     # package providers.
+    hold managed_package_names, outfile
 
     mark_auto unmanaged_package_names, outfile
 
@@ -106,6 +107,14 @@ EOS
 
   def mark_auto(packages, outfile)
     Open3.pipeline_w('xargs apt-mark auto', :out=>outfile) do |i, ts|
+      i.puts(packages)
+      i.close
+      ts[0].value.success? or raise "Failed to apt-mark packages"
+    end
+  end
+
+  def hold(packages, outfile)
+    Open3.pipeline_w('xargs apt-mark hold', :out=>outfile) do |i, ts|
       i.puts(packages)
       i.close
       ts[0].value.success? or raise "Failed to apt-mark packages"
