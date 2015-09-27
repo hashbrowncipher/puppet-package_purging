@@ -31,7 +31,7 @@ EOD
     package = Puppet::Type.type(:package)
 
     unless all_packages_synced
-      warning <<EOS
+      notice <<EOS
 
 It isn't safe to purge packages right now, because there are packages in the
 catalog that aren't synced on the system. Package purging is skipped for this
