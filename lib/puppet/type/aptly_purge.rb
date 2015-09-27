@@ -22,8 +22,12 @@ EOD
     isnamevar
   end
 
+  newparam(:debug, :boolean => true, :parent => Puppet::Parameter::Boolean) do
+    defaultto false
+  end
+
   def generate
-    outfile = "/dev/null"
+    outfile = @parameters[:debug] ? "/dev/stdout" : "/dev/null"
     package = Puppet::Type.type(:package)
 
     unless all_packages_synced
