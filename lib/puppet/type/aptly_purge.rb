@@ -26,9 +26,36 @@ EOD
     defaultto false
   end
 
+  newparam(:hold, :boolean => true, :parent => Puppet::Parameter::Boolean) do
+    defaultto false
+  end
+
   def generate
     outfile = @parameters[:debug] ? "/dev/stdout" : "/dev/null"
     package = Puppet::Type.type(:package)
+
+
+    # Using the RAL, divide the world into Catalog packages and not-Catalog
+    # packages.
+    (managed_packages, unmanaged_packages) = package.instances.select do |p|
+      p.provider.is_a?(Puppet::Type::Package::ProviderDpkg)
+    end.partition { |r| catalog.resource_refs.include? r.ref }
+
+    managed_package_names = managed_packages.map(&:name)
+    unmanaged_package_names = unmanaged_packages.map(&:name)
+
+    if @parameters[:hold] then
+      # You can't hold a package that isn't installed yet, so this should
+      # really be done after all packages are installed.
+
+      versioned_package_names = managed_packages.select do |p|
+        # What we really want is to grab all packages with an explicit version
+        # This is a cheap reproduction of what we really want.
+        ![:latest, :absent, :present].include?(p[:ensure])
+      end.map(&:name)
+
+      hold versioned_package_names, outfile
+    end
 
     unless all_packages_synced
       notice <<EOS
@@ -40,15 +67,6 @@ EOS
       raise Puppet::Error.new("Could not purge packages during this Puppet run")
     end
 
-    # Using the RAL, divide the world into Catalog packages and not-Catalog
-    # packages.
-    (managed_packages, unmanaged_packages) = package.instances.select do |p|
-      p.provider.is_a?(Puppet::Type::Package::ProviderDpkg)
-    end.partition { |r| catalog.resource_refs.include? r.ref }
-
-    managed_package_names = managed_packages.map(&:name)
-    unmanaged_package_names = unmanaged_packages.map(&:name)
-
     # If we don't set managed packages to noauto here, it is possible to
     # set ensure=>absent on an unmanaged package that a managed package
     # depends on.
@@ -57,12 +75,6 @@ EOS
     # If some other process has marked A as auto, B will get ensure=>absent
     # Then dpkg will remove both A and B.  This is bad!
     mark_manual managed_package_names, outfile
-
-    #TODO: only hold packages that aren't ensure=>latest.
-    #TODO: if you're really going to do it right, set this at the package
-    # provider level. There's no reason holding needs to go within the
-    # generate() hackery.
-    hold managed_package_names, outfile
 
     mark_auto unmanaged_package_names, outfile
 
