@@ -26,6 +26,15 @@ EOD
     defaultto false
   end
 
+  newparam(:upgrade, :boolean => true, :parent => Puppet::Parameter::Boolean) do
+    defaultto false
+    desc "Upgrade all unmanaged packages that are installed as dependencies of
+      managed packages. This is one possible way to keep libraries and
+      dependencies up to date while not managing all of explicitly in Puppet.
+      Another possible option is to use a dpkg-specific upgrader like
+      unattended-upgrades."
+  end
+
   def generate
     outfile = @parameters[:debug] ? "/dev/stdout" : "/dev/null"
     package = Puppet::Type.type(:package)
@@ -68,11 +77,13 @@ EOS
 
     apt_would_purge = get_purges()
 
-    unmanaged_packages.select do |r|
+    (purgeable_packages, depended_packages) = unmanaged_packages.partition do |r|
       # This is the crux.  We intersect the list of packages Puppet isn't
       # managing with the list of packages that apt would purge.
       apt_would_purge.include?(r.name)
-    end.each do |resource|
+    end
+
+    purgeable_packages.each do |resource|
       resource[:ensure] = 'absent'
       @parameters.each do |name, param|
         resource[name] = param.value if param.metaparam?
@@ -80,6 +91,18 @@ EOS
 
       resource.purging
     end
+
+    if @parameters[:upgrade]
+      depended_packages.each do |resource|
+        resource[:ensure] = 'latest'
+
+        @parameters.each do |name, param|
+          resource[name] = param.value if param.metaparam?
+        end
+      end
+    end
+
+
   end
 
   private
