@@ -37,9 +37,19 @@ EOD
 
     # Using the RAL, divide the world into Catalog packages and not-Catalog
     # packages.
-    (managed_packages, unmanaged_packages) = package.instances.select do |p|
+    managed_packages = []
+    unmanaged_packages = []
+
+    package.instances.select do |p|
       p.provider.is_a?(Puppet::Type::Package::ProviderDpkg)
-    end.partition { |r| catalog.resource_refs.include? r.ref }
+    end.each do |r|
+      catalog_r = catalog.resource(r.ref)
+      if catalog_r.nil?
+        unmanaged_packages << r
+      else
+        managed_packages << catalog_r
+      end
+    end
 
     managed_package_names = managed_packages.map(&:name)
     unmanaged_package_names = unmanaged_packages.map(&:name)
@@ -51,7 +61,7 @@ EOD
       versioned_package_names = managed_packages.select do |p|
         # What we really want is to grab all packages with an explicit version
         # This is a cheap reproduction of what we really want.
-        ![:latest, :absent, :present].include?(p[:ensure])
+        ![:latest, :absent, :present].include?(p.parameters[:ensure].value)
       end.map(&:name)
 
       hold versioned_package_names, outfile
