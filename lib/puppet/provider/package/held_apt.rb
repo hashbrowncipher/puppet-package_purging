@@ -1,5 +1,6 @@
 Puppet::Type.type(:package).provide :held_apt, :parent => :apt, :source => :dpkg do
   defaultfor :osfamily => :debian
+  has_feature :versionable, :install_options
 
   def self.parse_line(line)
     hash = nil
