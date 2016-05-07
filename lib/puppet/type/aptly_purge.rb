@@ -121,34 +121,42 @@ EOS
   end
 
   def mark_manual(packages, outfile)
-    Open3.pipeline_w('xargs apt-mark manual', :out=>outfile) do |i, ts|
-      i.puts(packages)
-      i.close
-      ts[0].value.success? or raise "Failed to apt-mark packages"
+    unless packages.empty?
+      Open3.pipeline_w('xargs apt-mark manual', :out=>outfile) do |i, ts|
+        i.puts(packages)
+        i.close
+        ts[0].value.success? or raise "Failed to apt-mark packages"
+      end
     end
   end
 
   def mark_auto(packages, outfile)
-    Open3.pipeline_w('xargs apt-mark auto', :out=>outfile) do |i, ts|
-      i.puts(packages)
-      i.close
-      ts[0].value.success? or raise "Failed to apt-mark packages"
+    unless packages.empty?
+      Open3.pipeline_w('xargs apt-mark auto', :out=>outfile) do |i, ts|
+        i.puts(packages)
+        i.close
+        ts[0].value.success? or raise "Failed to apt-mark packages"
+      end
     end
   end
 
   def hold(packages, outfile)
-    Open3.pipeline_w('xargs apt-mark hold', :out=>outfile) do |i, ts|
-      i.puts(packages)
-      i.close
-      ts[0].value.success? or raise "Failed to apt-mark packages"
+    unless packages.empty?
+      Open3.pipeline_w('xargs apt-mark hold', :out=>outfile) do |i, ts|
+        i.puts(packages)
+        i.close
+        ts[0].value.success? or raise "Failed to apt-mark packages"
+      end
     end
   end
 
   def unhold(packages, outfile)
-    Open3.pipeline_w('xargs apt-mark unhold', :out=>outfile) do |i, ts|
-      i.puts(packages)
-      i.close
-      ts[0].value.success? or raise "Failed to apt-mark packages"
+    unless packages.empty?
+      Open3.pipeline_w('xargs apt-mark unhold', :out=>outfile) do |i, ts|
+        i.puts(packages)
+        i.close
+        ts[0].value.success? or raise "Failed to apt-mark packages"
+      end
     end
   end
 
