@@ -54,17 +54,19 @@ EOD
     managed_package_names = managed_packages.map(&:name)
     unmanaged_package_names = unmanaged_packages.map(&:name)
 
+    holds = []
+
     if @parameters[:hold] then
       # You can't hold a package that isn't installed yet, so this should
       # really be done after all packages are installed.
 
-      versioned_package_names = managed_packages.select do |p|
+      holds = managed_packages.select do |p|
         # What we really want is to grab all packages with an explicit version
         # This is a cheap reproduction of what we really want.
         ![:latest, :absent, :present].include?(p.parameters[:ensure].value)
-      end.map(&:name)
-
-      hold versioned_package_names, outfile
+      end.map do |p|
+        Puppet::Type.type(:dpkg_hold).new({ :name => p[:name], :ensure => :present })
+      end
     end
 
     unless all_packages_synced
@@ -88,11 +90,9 @@ EOS
 
     mark_auto unmanaged_package_names, outfile
 
-    unhold unmanaged_package_names, outfile
-
     apt_would_purge = get_purges()
 
-    unmanaged_packages.select do |r|
+    removes = unmanaged_packages.select do |r|
       # This is the crux.  We intersect the list of packages Puppet isn't
       # managing with the list of packages that apt would purge.
       apt_would_purge.include?(r.name)
@@ -104,6 +104,8 @@ EOS
 
       resource.purging
     end
+
+    holds + removes
   end
 
   private
@@ -133,26 +135,6 @@ EOS
   def mark_auto(packages, outfile)
     unless packages.empty?
       Open3.pipeline_w('xargs apt-mark auto', :out=>outfile) do |i, ts|
-        i.puts(packages)
-        i.close
-        ts[0].value.success? or raise "Failed to apt-mark packages"
-      end
-    end
-  end
-
-  def hold(packages, outfile)
-    unless packages.empty?
-      Open3.pipeline_w('xargs apt-mark hold', :out=>outfile) do |i, ts|
-        i.puts(packages)
-        i.close
-        ts[0].value.success? or raise "Failed to apt-mark packages"
-      end
-    end
-  end
-
-  def unhold(packages, outfile)
-    unless packages.empty?
-      Open3.pipeline_w('xargs apt-mark unhold', :out=>outfile) do |i, ts|
         i.puts(packages)
         i.close
         ts[0].value.success? or raise "Failed to apt-mark packages"

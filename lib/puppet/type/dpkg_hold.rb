@@ -3,7 +3,11 @@ Puppet::Type.newtype(:dpkg_hold) do
 
   ensurable
 
+  newparam(:name) do
+     desc "The name of the package."
+  end
+
   autorequire(:package) do
-    self[:title]
+    self[:name]
   end
 end

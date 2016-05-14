@@ -1,3 +1,5 @@
+require 'tempfile'
+
 Puppet::Type.type(:dpkg_hold).provide(:dpkg) do
   self::DPKG_QUERY_FORMAT_STRING = %Q{'${Status} ${Package}\\n'}
   self::FIELDS_REGEX = %r{^(\S+) +(\S+) +(\S+) (\S+)$}
@@ -47,12 +49,21 @@ Puppet::Type.type(:dpkg_hold).provide(:dpkg) do
         hash[field] = value
       end
 
+      hash[:ensure] = hash[:desired] == 'hold' ? :present : :absent
       hash[:provider] = self.name
     else 
       Puppet.debug("Failed to match dpkg-query line #{line.inspect}")
     end
 
     return hash
+  end
+
+  def self.prefetch(resources)
+    instances.each do |prov|
+      if resource = resources[prov.name]
+	resource.provider = prov
+      end
+    end
   end
 
   def exists?
