@@ -26,9 +26,48 @@ EOD
     defaultto false
   end
 
+  newparam(:hold, :boolean => true, :parent => Puppet::Parameter::Boolean) do
+    defaultto false
+  end
+
   def generate
     outfile = @parameters[:debug] ? "/dev/stdout" : "/dev/null"
     package = Puppet::Type.type(:package)
+
+
+    # Using the RAL, divide the world into Catalog packages and not-Catalog
+    # packages.
+    managed_packages = []
+    unmanaged_packages = []
+
+    package.instances.select do |p|
+      p.provider.is_a?(Puppet::Type::Package::ProviderDpkg)
+    end.each do |r|
+      catalog_r = catalog.resource(r.ref)
+      if catalog_r.nil?
+        unmanaged_packages << r
+      else
+        managed_packages << catalog_r
+      end
+    end
+
+    managed_package_names = managed_packages.map(&:name)
+    unmanaged_package_names = unmanaged_packages.map(&:name)
+
+    holds = []
+
+    if @parameters[:hold] then
+      # You can't hold a package that isn't installed yet, so this should
+      # really be done after all packages are installed.
+
+      holds = managed_packages.select do |p|
+        # What we really want is to grab all packages with an explicit version
+        # This is a cheap reproduction of what we really want.
+        ![:latest, :absent, :present].include?(p.parameters[:ensure].value)
+      end.map do |p|
+        Puppet::Type.type(:dpkg_hold).new({ :name => p[:name], :ensure => :present })
+      end
+    end
 
     unless all_packages_synced
       notice <<EOS
@@ -40,15 +79,6 @@ EOS
       raise Puppet::Error.new("Could not purge packages during this Puppet run")
     end
 
-    # Using the RAL, divide the world into Catalog packages and not-Catalog
-    # packages.
-    (managed_packages, unmanaged_packages) = package.instances.select do |p|
-      p.provider.is_a?(Puppet::Type::Package::ProviderDpkg)
-    end.partition { |r| catalog.resource_refs.include? r.ref }
-
-    managed_package_names = managed_packages.map(&:name)
-    unmanaged_package_names = unmanaged_packages.map(&:name)
-
     # If we don't set managed packages to noauto here, it is possible to
     # set ensure=>absent on an unmanaged package that a managed package
     # depends on.
@@ -58,17 +88,11 @@ EOS
     # Then dpkg will remove both A and B.  This is bad!
     mark_manual managed_package_names, outfile
 
-    # It would be excellent to set 'apt-mark hold' on all managed packages
-    # here, but it turns out this doesn't interact well with dpkg based
-    # package providers.
-
     mark_auto unmanaged_package_names, outfile
-
-    unhold unmanaged_package_names, outfile
 
     apt_would_purge = get_purges()
 
-    unmanaged_packages.select do |r|
+    removes = unmanaged_packages.select do |r|
       # This is the crux.  We intersect the list of packages Puppet isn't
       # managing with the list of packages that apt would purge.
       apt_would_purge.include?(r.name)
@@ -80,6 +104,8 @@ EOS
 
       resource.purging
     end
+
+    holds + removes
   end
 
   private
@@ -97,26 +123,22 @@ EOS
   end
 
   def mark_manual(packages, outfile)
-    Open3.pipeline_w('xargs apt-mark manual', :out=>outfile) do |i, ts|
-      i.puts(packages)
-      i.close
-      ts[0].value.success? or raise "Failed to apt-mark packages"
+    unless packages.empty?
+      Open3.pipeline_w('xargs apt-mark manual', :out=>outfile) do |i, ts|
+        i.puts(packages)
+        i.close
+        ts[0].value.success? or raise "Failed to apt-mark packages"
+      end
     end
   end
 
   def mark_auto(packages, outfile)
-    Open3.pipeline_w('xargs apt-mark auto', :out=>outfile) do |i, ts|
-      i.puts(packages)
-      i.close
-      ts[0].value.success? or raise "Failed to apt-mark packages"
-    end
-  end
-
-  def unhold(packages, outfile)
-    Open3.pipeline_w('xargs apt-mark unhold', :out=>outfile) do |i, ts|
-      i.puts(packages)
-      i.close
-      ts[0].value.success? or raise "Failed to apt-mark packages"
+    unless packages.empty?
+      Open3.pipeline_w('xargs apt-mark auto', :out=>outfile) do |i, ts|
+        i.puts(packages)
+        i.close
+        ts[0].value.success? or raise "Failed to apt-mark packages"
+      end
     end
   end
 
