@@ -54,7 +54,9 @@ EOD
     end
 
     managed_package_names = managed_packages.map(&:name)
+    Puppet.debug "managed_package_names: #{managed_package_names}"
     unmanaged_package_names = unmanaged_packages.map(&:name)
+    Puppet.debug "unmanaged_package_names: #{unmanaged_package_names}"
 
     holds = []
 
@@ -93,6 +95,7 @@ EOS
     mark_auto unmanaged_package_names, outfile
 
     apt_would_purge = get_purges()
+    Puppet.debug "apt_would_purge: #{apt_would_purge.to_a}"
 
     removes = unmanaged_packages.select do |r|
       # This is the crux.  We intersect the list of packages Puppet isn't
