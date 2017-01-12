@@ -1,5 +1,7 @@
 require 'set'
 require 'open3'
+require 'puppet/parameter/boolean'
+
 
 Puppet::Type.newtype(:aptly_purge) do
   @doc = <<-EOD
