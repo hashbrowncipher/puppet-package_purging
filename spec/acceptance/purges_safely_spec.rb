@@ -13,6 +13,9 @@ describe 'package_purging_with_apt' do
         host.uninstall_package 'dict-jargon'
         # in fact, dictd is still around
         expect(check_for_package host, 'dictd').to be true
+
+        # enable purge by default
+        create_remote_file host, '/etc/apt/apt.conf.d/99always-purge', "APT::Get::Purge \"true\";\n";
       end
     end
 
