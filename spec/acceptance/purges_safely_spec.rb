@@ -7,6 +7,7 @@ describe 'package_purging_with_apt' do
       package { 'puppetlabs-release-pc1': }
       package { 'puppet-agent': }
       package { 'fortunes': }
+      package { 'openssh-server': }
       include package_purging::config
       aptly_purge { 'packages': }
     EOS

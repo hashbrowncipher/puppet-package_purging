@@ -47,6 +47,16 @@ EOD
     end.each do |r|
       catalog_r = catalog.resource(r.ref)
       if catalog_r.nil?
+        # A 'Package[<title>]' resource could not be found in the catalog.
+        # What about resources where title != name?
+        #   package {'arbitrarytitle': name => 'pkgname'}
+        # Because 'Package[<title>]' and 'Package[<name>]' are not synonyms,
+        # we need to check if the package resource we are after has been aliased
+        # to a different title.
+        ref = find_resource_alias(["Package", r.name, :held_apt])
+        catalog_r = catalog.resource(ref) if ref
+      end
+      if catalog_r.nil?
         unmanaged_packages << r
       else
         managed_packages << catalog_r
@@ -156,5 +166,17 @@ EOS
       ts[0].value.success? or raise "Failed to simulate apt-get autoremove"
       p
     end
+  end
+
+  # ref is of the form: ["Package", "name", :provider]
+  def find_resource_alias ref
+    @resource_aliases ||= catalog.instance_variable_get(:@aliases)
+
+    result = @resource_aliases.find do |ref_str, aliases|
+      aliases.find do |candidate_ref|
+          candidate_ref == ref
+      end
+    end
+    return result.nil? ? nil : result.first
   end
 end
