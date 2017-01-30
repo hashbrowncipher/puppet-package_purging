@@ -14,15 +14,18 @@ Puppet `ensure=>absent` resources.
 
 ## Usage
 
-Usage is like so:
+Usage is as follows. Unless `APT::Get::Purge` is set to `true`, it'll take two Puppet
+runs for `aptly_purge` to know which packages can be purged.
 
 ~~~~
+include package_purging::config
 aptly_purge { 'packages': }
 ~~~~
 
 To see what would be removed:
 
 ~~~~
+include package_purging::config
 aptly_purge { 'packages':
   noop => true,
 }
