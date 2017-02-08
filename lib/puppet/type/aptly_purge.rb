@@ -45,17 +45,7 @@ EOD
     package.instances.select do |p|
       p.provider.is_a?(Puppet::Type::Package::ProviderDpkg)
     end.each do |r|
-      catalog_r = catalog.resource(r.ref)
-      if catalog_r.nil?
-        # A 'Package[<title>]' resource could not be found in the catalog.
-        # What about resources where title != name?
-        #   package {'arbitrarytitle': name => 'pkgname'}
-        # Because 'Package[<title>]' and 'Package[<name>]' are not synonyms,
-        # we need to check if the package resource we are after has been aliased
-        # to a different title.
-        ref = find_resource_alias(["Package", r.name, :held_apt])
-        catalog_r = catalog.resource(ref) if ref
-      end
+      catalog_r = catalog.resource(r.ref) || find_resource_alias(["Package", r.name, :held_apt])
       if catalog_r.nil?
         unmanaged_packages << r
       else
@@ -169,6 +159,7 @@ EOS
   end
 
   # ref is of the form: ["Package", "name", :provider]
+  # returns nil if no alias exist
   def find_resource_alias ref
     @resource_aliases ||= catalog.instance_variable_get(:@aliases)
 
@@ -177,6 +168,6 @@ EOS
           candidate_ref == ref
       end
     end
-    return result.nil? ? nil : result.first
+    return result.nil? ? nil : catalog.resource(result.first)
   end
 end
