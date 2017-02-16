@@ -13,6 +13,17 @@ describe 'package_purging_with_apt' do
     EOS
   end
 
+  def get_packages_state host
+    apt_mark = on(host, 'apt-mark showauto 2>&1').stdout
+    result = apt_mark.lines.each_with_object({}) { |line, h| h[line.rstrip] = 'auto' }
+    apt_mark = on(host, 'apt-mark showmanual 2>&1').stdout
+    apt_mark.lines.each_with_object(result) do |line, h|
+      package = line.rstrip
+      raise "Package #{package} appears both in apt-mark showauto and showmanual" if h.has_key?(package)
+      h[package] = 'manual'
+    end
+  end
+
   before :all do
     hosts.each do |host|
       # install dict-jargon outside of Puppet
@@ -38,6 +49,10 @@ describe 'package_purging_with_apt' do
       on host, 'puppet config set ordering random'
       on host, 'puppet config print ordering | grep -q random'
       expect(@result.exit_code).to eq 0
+
+      packages_state = get_packages_state host
+      # at this stage, apt-mark knows that 'fortunes' has been manually installed
+      expect(packages_state['fortunes']).to eq 'manual'
     end
   end
 

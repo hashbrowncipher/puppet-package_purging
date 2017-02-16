@@ -13,8 +13,6 @@ The apt-get autoremover is then simulated, generating a list of packages to
 be removed.  This type takes the resulting list and generates Puppet package
 resources with ensure=>absent for any unmanaged resources that apt-get would
 autoremove.
-
-NOTE: This type writes into the apt-mark system, even when run in noop mode.
 EOD
 
   newparam(:title) do
@@ -25,6 +23,10 @@ EOD
   end
 
   newparam(:debug, :boolean => true, :parent => Puppet::Parameter::Boolean) do
+    defaultto false
+  end
+
+  newparam(:purge, :boolean => true, :parent => Puppet::Parameter::Boolean) do
     defaultto false
   end
 
@@ -64,12 +66,17 @@ EOD
       # You can't hold a package that isn't installed yet, so this should
       # really be done after all packages are installed.
 
-      holds = managed_packages.select do |p|
+      pinned = managed_packages.select do |p|
         # What we really want is to grab all packages with an explicit version
         # This is a cheap reproduction of what we really want.
         ![:latest, :absent, :present].include?(p.parameters[:ensure].value)
-      end.map do |p|
-        Puppet::Type.type(:dpkg_hold).new({ :name => p[:name], :ensure => :present })
+      end
+
+      holds = []
+      unless Puppet.settings[:noop] or self[:noop]
+        holds = pinned.each do |p|
+          Puppet::Type.type(:dpkg_hold).new({ :name => p[:name], :ensure => :present })
+        end
       end
     end
 
@@ -90,9 +97,11 @@ EOS
     # B is marked as 'auto' as it should
     # If some other process has marked A as auto, B will get ensure=>absent
     # Then dpkg will remove both A and B.  This is bad!
-    mark_manual managed_package_names, outfile
+    unless Puppet.settings[:noop] or self[:noop]
+      mark_manual managed_package_names, outfile
 
-    mark_auto unmanaged_package_names, outfile
+      mark_auto unmanaged_package_names, outfile
+    end
 
     apt_would_purge = get_purges()
     Puppet.debug "apt_would_purge: #{apt_would_purge.to_a}"
