@@ -51,7 +51,8 @@ describe 'package_purging_with_apt' do
       expect(@result.exit_code).to eq 0
 
       packages_state = get_packages_state host
-      # at this stage, apt-mark knows that 'fortunes' has been manually installed
+      expect(packages_state['dict-jargon']).to eq 'manual'
+      expect(packages_state['dictd']).to eq 'auto'
       expect(packages_state['fortunes']).to eq 'manual'
     end
   end
@@ -68,11 +69,24 @@ describe 'package_purging_with_apt' do
       expect(@result.exit_code).to eq 0
     end
 
+    # The manifest has been applied, no packages will be removed until the next run
+    # because the settings at "include package_purging::config" have just been put
+    # in place.
     describe package('dict-jargon') do
       it { should be_installed }
     end
     describe package('dictd') do
       it { should be_installed }
+    end
+
+    # Only 'fortunes' is in the catalog.
+    # 'dict-jargon' has been installed outside of puppet, 'dictd' is one
+    # of its dependencies. 'dict-jargon' gets apt-mark'ed as 'auto'.
+    it 'should correctly apt-mark packages' do
+      packages_state = get_packages_state default_node
+      expect(packages_state['dict-jargon']).to eq 'auto'
+      expect(packages_state['dictd']).to eq 'auto'
+      expect(packages_state['fortunes']).to eq 'manual'
     end
   end
 
@@ -96,4 +110,14 @@ describe 'package_purging_with_apt' do
     end
   end
 
+  context 'aptly_purge in noop mode' do
+    install_package default_node, 'dict-jargon'
+    # dictd gets automatically installed as a dependency of dict-jargon
+    expect(check_for_package default_node, 'dictd').to be true
+    it 'before puppet runs' do
+      packages_state = get_packages_state default_node
+      expect(packages_state['dict-jargon']).to eq 'manual'
+      expect(packages_state['dict']).to eq 'auto'
+    end
+  end
 end
