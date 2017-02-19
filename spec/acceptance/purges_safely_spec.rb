@@ -9,7 +9,9 @@ describe 'package_purging_with_apt' do
       package { 'fortunes': }
       package { 'openssh-server': }
       include package_purging::config
-      aptly_purge { 'packages': }
+      aptly_purge { 'packages':
+        purge => true,
+      }
     EOS
   end
 
@@ -129,7 +131,95 @@ describe 'package_purging_with_apt' do
           package { 'fortunes': }
           package { 'openssh-server': }
           include package_purging::config
-          aptly_purge { 'packages': noop => true}
+          aptly_purge { 'packages': noop => true }
+      EOS
+      apply_manifest(m, :debug => true)
+      expect(@result.exit_code).to eq 0
+      packages_state = get_packages_state default_node
+      expect(packages_state['dict-jargon']).to eq 'manual'
+      expect(packages_state['dict']).to eq 'auto'
+      expect(packages_state['fortunes']).to eq 'manual'
+    end
+
+    describe package('dict-jargon') do
+      it { should be_installed }
+    end
+    describe package('dictd') do
+      it { should be_installed }
+    end
+    describe package('fortunes') do
+      it { should be_installed }
+    end
+    describe package('fortunes-min') do  # a dependency of fortunes
+      it { should be_installed }
+    end
+  end
+
+  context 'aptly_purge with purge => false' do
+    it 'before puppet runs' do
+      install_package default_node, 'dict-jargon'
+      # dictd gets automatically installed as a dependency of dict-jargon
+      expect(check_for_package default_node, 'dictd').to be true
+      packages_state = get_packages_state default_node
+      expect(packages_state['dict-jargon']).to eq 'manual'
+      expect(packages_state['dict']).to eq 'auto'
+      expect(packages_state['fortunes']).to eq 'manual'
+    end
+
+    it 'should not apt-mark packages' do
+      m = <<-EOS
+          package { 'ubuntu-minimal': }
+          package { 'puppetlabs-release-pc1': }
+          package { 'puppet-agent': }
+          package { 'fortunes': }
+          package { 'openssh-server': }
+          include package_purging::config
+          aptly_purge { 'packages':
+            purge => false,
+          }
+      EOS
+      apply_manifest(m, :debug => true)
+      expect(@result.exit_code).to eq 0
+      packages_state = get_packages_state default_node
+      expect(packages_state['dict-jargon']).to eq 'manual'
+      expect(packages_state['dict']).to eq 'auto'
+      expect(packages_state['fortunes']).to eq 'manual'
+    end
+
+    describe package('dict-jargon') do
+      it { should be_installed }
+    end
+    describe package('dictd') do
+      it { should be_installed }
+    end
+    describe package('fortunes') do
+      it { should be_installed }
+    end
+    describe package('fortunes-min') do  # a dependency of fortunes
+      it { should be_installed }
+    end
+  end
+
+  context 'aptly_purge by default' do
+    it 'before puppet runs' do
+      install_package default_node, 'dict-jargon'
+      # dictd gets automatically installed as a dependency of dict-jargon
+      expect(check_for_package default_node, 'dictd').to be true
+      packages_state = get_packages_state default_node
+      expect(packages_state['dict-jargon']).to eq 'manual'
+      expect(packages_state['dict']).to eq 'auto'
+      expect(packages_state['fortunes']).to eq 'manual'
+    end
+
+    it 'should not apt-mark packages' do
+      m = <<-EOS
+          package { 'ubuntu-minimal': }
+          package { 'puppetlabs-release-pc1': }
+          package { 'puppet-agent': }
+          package { 'fortunes': }
+          package { 'openssh-server': }
+          include package_purging::config
+          aptly_purge { 'packages': }
       EOS
       apply_manifest(m, :debug => true)
       expect(@result.exit_code).to eq 0

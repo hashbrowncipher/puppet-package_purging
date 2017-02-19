@@ -22,7 +22,9 @@ describe 'title_and_name_differ' do
         package {'fortunespkg':
           name => 'fortunes',
         }
-        aptly_purge {'packages': }
+        aptly_purge {'packages':
+          purge => true,
+        }
       EOS
       apply_manifest m, :debug => true
       expect(@result.exit_code).to eq 0

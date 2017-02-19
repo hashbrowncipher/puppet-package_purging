@@ -97,7 +97,7 @@ EOS
     # B is marked as 'auto' as it should
     # If some other process has marked A as auto, B will get ensure=>absent
     # Then dpkg will remove both A and B.  This is bad!
-    unless Puppet.settings[:noop] or self[:noop]
+    unless !(@parameters[:purge] && @parameters[:purge].value) or Puppet.settings[:noop] or self[:noop]
       mark_manual managed_package_names, outfile
 
       mark_auto unmanaged_package_names, outfile
