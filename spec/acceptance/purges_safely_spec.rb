@@ -112,7 +112,19 @@ describe 'package_purging_with_apt' do
     end
   end
 
-  context 'aptly_purge in noop mode' do
+  RSpec.shared_examples 'aptly_purge noop' do |test_case|
+    let(:test_manifest) {
+      m = <<-EOS
+          package { 'ubuntu-minimal': }
+          package { 'puppetlabs-release-pc1': }
+          package { 'puppet-agent': }
+          package { 'fortunes': }
+          package { 'openssh-server': }
+          include package_purging::config
+      EOS
+      m + test_case
+    }
+
     it 'before puppet runs' do
       install_package default_node, 'dict-jargon'
       # dictd gets automatically installed as a dependency of dict-jargon
@@ -121,22 +133,20 @@ describe 'package_purging_with_apt' do
       expect(packages_state['dict-jargon']).to eq 'manual'
       expect(packages_state['dict']).to eq 'auto'
       expect(packages_state['fortunes']).to eq 'manual'
+
+      # Purposely mark dict-jargon as auto. We really want it to look like
+      # something that could be purged and make sure it gets left alone
+      # when running with noop or purge => false .
+      on default_node, 'apt-mark auto dict-jargon'
+      packages_state = get_packages_state default_node
+      expect(packages_state['dict-jargon']).to eq 'auto'
     end
 
     it 'should not apt-mark packages' do
-      m = <<-EOS
-          package { 'ubuntu-minimal': }
-          package { 'puppetlabs-release-pc1': }
-          package { 'puppet-agent': }
-          package { 'fortunes': }
-          package { 'openssh-server': }
-          include package_purging::config
-          aptly_purge { 'packages': noop => true }
-      EOS
-      apply_manifest(m, :debug => true)
+      apply_manifest(test_manifest, :debug => true)
       expect(@result.exit_code).to eq 0
       packages_state = get_packages_state default_node
-      expect(packages_state['dict-jargon']).to eq 'manual'
+      expect(packages_state['dict-jargon']).to eq 'auto'
       expect(packages_state['dict']).to eq 'auto'
       expect(packages_state['fortunes']).to eq 'manual'
     end
@@ -153,93 +163,18 @@ describe 'package_purging_with_apt' do
     describe package('fortunes-min') do  # a dependency of fortunes
       it { should be_installed }
     end
+  end
+
+  context 'aptly_purge in noop mode' do
+    it_behaves_like 'aptly_purge noop', "aptly_purge { 'packages': noop => true }"
   end
 
   context 'aptly_purge with purge => false' do
-    it 'before puppet runs' do
-      install_package default_node, 'dict-jargon'
-      # dictd gets automatically installed as a dependency of dict-jargon
-      expect(check_for_package default_node, 'dictd').to be true
-      packages_state = get_packages_state default_node
-      expect(packages_state['dict-jargon']).to eq 'manual'
-      expect(packages_state['dict']).to eq 'auto'
-      expect(packages_state['fortunes']).to eq 'manual'
-    end
-
-    it 'should not apt-mark packages' do
-      m = <<-EOS
-          package { 'ubuntu-minimal': }
-          package { 'puppetlabs-release-pc1': }
-          package { 'puppet-agent': }
-          package { 'fortunes': }
-          package { 'openssh-server': }
-          include package_purging::config
-          aptly_purge { 'packages':
-            purge => false,
-          }
-      EOS
-      apply_manifest(m, :debug => true)
-      expect(@result.exit_code).to eq 0
-      packages_state = get_packages_state default_node
-      expect(packages_state['dict-jargon']).to eq 'manual'
-      expect(packages_state['dict']).to eq 'auto'
-      expect(packages_state['fortunes']).to eq 'manual'
-    end
-
-    describe package('dict-jargon') do
-      it { should be_installed }
-    end
-    describe package('dictd') do
-      it { should be_installed }
-    end
-    describe package('fortunes') do
-      it { should be_installed }
-    end
-    describe package('fortunes-min') do  # a dependency of fortunes
-      it { should be_installed }
-    end
+    it_behaves_like 'aptly_purge noop', "aptly_purge { 'packages': purge => false }"
   end
 
   context 'aptly_purge by default' do
-    it 'before puppet runs' do
-      install_package default_node, 'dict-jargon'
-      # dictd gets automatically installed as a dependency of dict-jargon
-      expect(check_for_package default_node, 'dictd').to be true
-      packages_state = get_packages_state default_node
-      expect(packages_state['dict-jargon']).to eq 'manual'
-      expect(packages_state['dict']).to eq 'auto'
-      expect(packages_state['fortunes']).to eq 'manual'
-    end
-
-    it 'should not apt-mark packages' do
-      m = <<-EOS
-          package { 'ubuntu-minimal': }
-          package { 'puppetlabs-release-pc1': }
-          package { 'puppet-agent': }
-          package { 'fortunes': }
-          package { 'openssh-server': }
-          include package_purging::config
-          aptly_purge { 'packages': }
-      EOS
-      apply_manifest(m, :debug => true)
-      expect(@result.exit_code).to eq 0
-      packages_state = get_packages_state default_node
-      expect(packages_state['dict-jargon']).to eq 'manual'
-      expect(packages_state['dict']).to eq 'auto'
-      expect(packages_state['fortunes']).to eq 'manual'
-    end
-
-    describe package('dict-jargon') do
-      it { should be_installed }
-    end
-    describe package('dictd') do
-      it { should be_installed }
-    end
-    describe package('fortunes') do
-      it { should be_installed }
-    end
-    describe package('fortunes-min') do  # a dependency of fortunes
-      it { should be_installed }
-    end
+    it_behaves_like 'aptly_purge noop', "aptly_purge { 'packages': }"
   end
+
 end

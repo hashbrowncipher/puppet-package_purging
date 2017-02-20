@@ -73,7 +73,7 @@ EOD
       end
 
       holds = []
-      unless Puppet.settings[:noop] or self[:noop]
+      unless noop?
         holds = pinned.each do |p|
           Puppet::Type.type(:dpkg_hold).new({ :name => p[:name], :ensure => :present })
         end
@@ -97,7 +97,7 @@ EOS
     # B is marked as 'auto' as it should
     # If some other process has marked A as auto, B will get ensure=>absent
     # Then dpkg will remove both A and B.  This is bad!
-    unless !(@parameters[:purge] && @parameters[:purge].value) or Puppet.settings[:noop] or self[:noop]
+    if should_purge?
       mark_manual managed_package_names, outfile
 
       mark_auto unmanaged_package_names, outfile
@@ -106,17 +106,21 @@ EOS
     apt_would_purge = get_purges()
     Puppet.debug "apt_would_purge: #{apt_would_purge.to_a}"
 
-    removes = unmanaged_packages.select do |r|
-      # This is the crux.  We intersect the list of packages Puppet isn't
-      # managing with the list of packages that apt would purge.
-      apt_would_purge.include?(r.name)
-    end.each do |resource|
-      resource[:ensure] = 'absent'
-      @parameters.each do |name, param|
-        resource[name] = param.value if param.metaparam?
-      end
+    if should_purge?
+        removes = unmanaged_packages.select do |r|
+          # This is the crux.  We intersect the list of packages Puppet isn't
+          # managing with the list of packages that apt would purge.
+          apt_would_purge.include?(r.name)
+        end.each do |resource|
+          resource[:ensure] = 'absent'
+          @parameters.each do |name, param|
+            resource[name] = param.value if param.metaparam?
+          end
 
-      resource.purging
+          resource.purging
+        end
+    else
+        removes = []
     end
 
     holds + removes
@@ -178,5 +182,9 @@ EOS
       end
     end
     return result.nil? ? nil : catalog.resource(result.first)
+  end
+
+  def should_purge?
+    @parameters[:purge].value && !noop?
   end
 end
