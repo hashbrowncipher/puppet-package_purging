@@ -61,8 +61,7 @@ EOD
     Puppet.debug "unmanaged_package_names: #{unmanaged_package_names}"
 
     holds = []
-
-    if @parameters[:hold] then
+    if should_hold? then
       # You can't hold a package that isn't installed yet, so this should
       # really be done after all packages are installed.
 
@@ -72,9 +71,9 @@ EOD
         ![:latest, :absent, :present].include?(p.parameters[:ensure].value)
       end
 
-      holds = []
+      Puppet.debug "pinned: #{pinned.map(&:name)}"
       unless noop?
-        holds = pinned.each do |p|
+        holds = pinned.map do |p|
           Puppet::Type.type(:dpkg_hold).new({ :name => p[:name], :ensure => :present })
         end
       end
@@ -89,6 +88,7 @@ Puppet run.
 EOS
       raise Puppet::Error.new("Could not purge packages during this Puppet run")
     end
+    Puppet.debug "holds: #{holds.map(&:name)}"
 
     # If we don't set managed packages to noauto here, it is possible to
     # set ensure=>absent on an unmanaged package that a managed package
@@ -123,7 +123,32 @@ EOS
         removes = []
     end
 
-    holds + removes
+    # un-hold packages
+    if should_hold?
+      dpkg_selections = Puppet::Util::Execution.execute('dpkg --get-selections')
+      dpkg_selections = Hash[*dpkg_selections.lines.map {|l| l.rstrip.split(/\s+/,2)}.flatten]
+      to_be_removed = Hash[removes.map(&:name).zip([])]
+      # unmanaged packages that are not already slated for removal
+      unholds = unmanaged_packages.select do |p|
+        !to_be_removed.include?(p.name)
+      end
+      # managed packages with ensure => present
+      unholds += managed_packages.select do |p|
+        p.parameters[:ensure].value == :present
+      end
+      # if the packages to be un-held are currently held, generate a dpkg_hold resource
+      unholds = unholds.select do |p|
+        dpkg_selections.include?(p.name) &&
+        dpkg_selections[p.name] == 'hold'
+      end.map do |p|
+        Puppet::Type.type(:dpkg_hold).new({ :name => p[:name], :ensure => :absent })
+      end
+    else
+      unholds = []
+    end
+    Puppet.debug "unholds: #{unholds.map(&:name)}"
+
+    holds + unholds + removes
   end
 
   private
@@ -185,6 +210,10 @@ EOS
   end
 
   def should_purge?
-    @parameters[:purge].value && !noop?
+    @parameters[:purge] && @parameters[:purge].value && !noop?
+  end
+
+  def should_hold?
+    @parameters[:hold] && @parameters[:hold].value && !noop?
   end
 end
