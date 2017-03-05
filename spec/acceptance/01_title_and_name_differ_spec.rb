@@ -28,19 +28,10 @@ describe 'title_and_name_differ' do
       EOS
       apply_manifest m, :debug => true
       expect(@result.exit_code).to eq 0
-    end
-
-    describe package('dict-jargon') do
-      it { should_not be_installed }
-    end
-    describe package('dictd') do
-      it { should_not be_installed }
-    end
-    describe package('fortunes') do
-      it { should be_installed }
-    end
-    describe package('fortunes-min') do  # a dependency of fortunes
-      it { should be_installed }
+      expect(package('dict-jargon')).to_not be_installed
+      expect(package('dictd')).to_not be_installed
+      expect(package('fortunes')).to be_installed
+      expect(package('fortunes-min')).to be_installed  # a dependency of fortune
     end
   end
 end

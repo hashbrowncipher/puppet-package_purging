@@ -56,11 +56,8 @@ describe 'package_purging_with_apt' do
       expect(packages_state['dict-jargon']).to eq 'manual'
       expect(packages_state['dictd']).to eq 'auto'
       expect(packages_state['fortunes']).to eq 'manual'
+      expect(check_for_package host, 'ubuntu-minimal').to be true
     end
-  end
-
-  describe package('ubuntu-minimal') do
-    it { should be_installed }
   end
 
   context 'aptly_purge with unmanaged packages on the system, first puppet run' do
@@ -69,16 +66,11 @@ describe 'package_purging_with_apt' do
       # before/require ordering constraints don't work on it
       apply_manifest(package_purging_manifest)
       expect(@result.exit_code).to eq 0
-    end
-
-    # The manifest has been applied, no packages will be removed until the next run
-    # because the settings at "include package_purging::config" have just been put
-    # in place.
-    describe package('dict-jargon') do
-      it { should be_installed }
-    end
-    describe package('dictd') do
-      it { should be_installed }
+      # The manifest has been applied, no packages will be removed until the next run
+      # because the settings at "include package_purging::config" have just been put
+      # in place.
+      expect(package('dict-jargon')).to be_installed
+      expect(package('dictd')).to be_installed
     end
 
     # Only 'fortunes' is in the catalog.
@@ -96,19 +88,10 @@ describe 'package_purging_with_apt' do
     it 'should remove unmanaged packages' do
       apply_manifest(package_purging_manifest, :debug => true)
       expect(@result.exit_code).to eq 0
-    end
-
-    describe package('dict-jargon') do
-      it { should_not be_installed }
-    end
-    describe package('dictd') do
-      it { should_not be_installed }
-    end
-    describe package('fortunes') do
-      it { should be_installed }
-    end
-    describe package('fortunes-min') do  # a dependency of fortunes
-      it { should be_installed }
+      expect(package('dict-jargon')).to_not be_installed
+      expect(package('dictd')).to_not be_installed
+      expect(package('fortunes')).to be_installed
+      expect(package('fortunes-min')).to be_installed  # a dependency of fortune
     end
   end
 
@@ -149,19 +132,11 @@ describe 'package_purging_with_apt' do
       expect(packages_state['dict-jargon']).to eq 'auto'
       expect(packages_state['dict']).to eq 'auto'
       expect(packages_state['fortunes']).to eq 'manual'
-    end
 
-    describe package('dict-jargon') do
-      it { should be_installed }
-    end
-    describe package('dictd') do
-      it { should be_installed }
-    end
-    describe package('fortunes') do
-      it { should be_installed }
-    end
-    describe package('fortunes-min') do  # a dependency of fortunes
-      it { should be_installed }
+      expect(package('dict-jargon')).to be_installed
+      expect(package('dictd')).to be_installed
+      expect(package('fortunes')).to be_installed
+      expect(package('fortunes-min')).to be_installed  # a dependency of fortune
     end
   end
 
