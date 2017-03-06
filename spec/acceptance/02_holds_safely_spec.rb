@@ -196,7 +196,7 @@ describe 'package_holding_with_apt' do
 
 
   RSpec.shared_examples 'aptly_purge (hold) noop' do |test_case|
-    it 'maeks no changes' do
+    it 'makes no changes' do
       managed_packages = @managed_packages
 
       managed_packages.each do |p|
