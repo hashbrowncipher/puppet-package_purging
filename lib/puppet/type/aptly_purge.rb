@@ -60,7 +60,6 @@ EOD
     unmanaged_package_names = unmanaged_packages.map(&:name)
     Puppet.debug "unmanaged_package_names: #{unmanaged_package_names}"
 
-    holds = []
     if should_hold? then
       # You can't hold a package that isn't installed yet, so this should
       # really be done after all packages are installed.
@@ -77,7 +76,10 @@ EOD
           Puppet::Type.type(:dpkg_hold).new({ :name => p[:name], :ensure => :present })
         end
       end
+    else
+      holds = []
     end
+    Puppet.debug "holds: #{holds.map(&:name)}"
 
     unless all_packages_synced
       notice <<EOS
@@ -88,7 +90,6 @@ Puppet run.
 EOS
       raise Puppet::Error.new("Could not purge packages during this Puppet run")
     end
-    Puppet.debug "holds: #{holds.map(&:name)}"
 
     # If we don't set managed packages to noauto here, it is possible to
     # set ensure=>absent on an unmanaged package that a managed package
@@ -107,21 +108,22 @@ EOS
     Puppet.debug "apt_would_purge: #{apt_would_purge.to_a}"
 
     if should_purge?
-        removes = unmanaged_packages.select do |r|
-          # This is the crux.  We intersect the list of packages Puppet isn't
-          # managing with the list of packages that apt would purge.
-          apt_would_purge.include?(r.name)
-        end.each do |resource|
-          resource[:ensure] = 'absent'
-          @parameters.each do |name, param|
-            resource[name] = param.value if param.metaparam?
-          end
+      removes = unmanaged_packages.select do |r|
+        # This is the crux.  We intersect the list of packages Puppet isn't
+        # managing with the list of packages that apt would purge.
+        apt_would_purge.include?(r.name)
+      end.each do |resource|
+        resource[:ensure] = 'absent'
+        @parameters.each do |name, param|
+          resource[name] = param.value if param.metaparam?
+        end
 
-          resource.purging
+        resource.purging
         end
     else
-        removes = []
+      removes = []
     end
+    Puppet.debug "removes: #{removes.map(&:name)}"
 
     # un-hold packages
     if should_hold?
@@ -136,7 +138,7 @@ EOS
       unholds += managed_packages.select do |p|
         p.parameters[:ensure].value == :present
       end
-      # if the packages to be un-held are currently held, generate a dpkg_hold resource
+      # if the packages to be un-held are currently held, generate a dpkg_hold resource with ensure => absent
       unholds = unholds.select do |p|
         dpkg_selections.include?(p.name) &&
         dpkg_selections[p.name] == 'hold'
