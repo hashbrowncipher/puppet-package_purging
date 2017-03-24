@@ -52,6 +52,8 @@ describe 'aptitude tests -' do
       install_package host, 'dummypkg'
       # same as `include package_purging::config`, saves a Puppet run
       create_remote_file host, '/etc/apt/apt.conf.d/99always-purge', "APT::Get::Purge \"true\";\n";
+      # aptitude thinks packages from the local repo are untrusted...
+      create_remote_file host, '/etc/apt/apt.conf.d/98allow-untrusted', "Aptitude::Cmdline::ignore-trust-violations \"true\";\n";
 
       @managed_packages.each do |p|
         @package_versions[p] = get_installed_version(host, p) || get_candidate_version(host, p)
@@ -89,10 +91,9 @@ describe 'aptitude tests -' do
   end
 
   context 'dummypkg installed via aptitude' do
-    it 'produces a noop puppet run' do
+    it 'produces a non-converged puppet run' do
       managed_packages = @managed_packages
-      pinned_packages = managed_packages - ['dummypkg']
-      m = pinned_packages.map do |p|
+      m = (managed_packages - ['dummypkg']).map do |p|
         "package { '#{p}': ensure => '#{@package_versions[p]}' }"
       end.join("\n")
       p = 'dummypkg'
@@ -106,14 +107,77 @@ describe 'aptitude tests -' do
           hold => true,
         }
       EOS
-      apply_manifest m, :catch_changes => true, :debug => false
-      expect(@result.exit_code).to eq 0
+      apply_manifest m, :expect_changes => true, :debug => true
+      expect(@result.stdout).to include("Notice: /Stage[main]/Main/Package[dummypkg]/ensure: ensure changed 'held' to '0.0.3'")
+      expect(@result.exit_code).to eq 2
+      expect(package('dummypkg')).to be_installed
 
       packages_state = get_packages_state default_node
       # our packages are held
       expect(packages_state.values_at(*managed_packages)).to eq(['hold'] * managed_packages.length)
       # everything else isn't
       expect(packages_state.values_at(*(packages_state.keys - managed_packages))).not_to include('hold')
+    end
+  end
+
+  context 'dummypkg installed via held_aptitude' do
+    it 'produces a noop puppet run' do
+      managed_packages = @managed_packages
+      m = (managed_packages - ['dummypkg']).map do |p|
+        "package { '#{p}': ensure => '#{@package_versions[p]}' }"
+      end.join("\n")
+      p = 'dummypkg'
+      m += <<-EOS
+
+        package{'#{p}':
+          ensure => '#{@package_versions[p]}',
+          provider => 'held_aptitude',
+        }
+        aptly_purge {'packages':
+          hold => true,
+        }
+      EOS
+      apply_manifest m, :catch_changes => true, :debug => true
+      expect(@result.exit_code).to eq 0
+      expect(package('dummypkg')).to be_installed
+
+      packages_state = get_packages_state default_node
+      # our packages are held
+      expect(packages_state.values_at(*managed_packages)).to eq(['hold'] * managed_packages.length)
+      # everything else isn't
+      expect(packages_state.values_at(*(packages_state.keys - managed_packages))).not_to include('hold')
+    end
+
+    it 'actually uses /usr/bin/aptitude' do
+      on default_node, 'apt-get purge -y --force-yes dummypkg'  # get puppet to install the package again
+      managed_packages = @managed_packages
+      m = (managed_packages - ['dummypkg']).map do |p|
+        "package { '#{p}': ensure => '#{@package_versions[p]}' }"
+      end.join("\n")
+      p = 'dummypkg'
+      m += <<-EOS
+
+        package{'#{p}':
+          ensure => '#{@package_versions[p]}',
+          provider => 'held_aptitude',
+        }
+        aptly_purge {'packages':
+          hold => true,
+        }
+      EOS
+      apply_manifest m, :expect_changes => true, :debug => true
+      expect(@result.stdout).to include("/usr/bin/aptitude -y -o DPkg::Options::=--force-confold install dummypkg=0.0.3")
+      expect(@result.exit_code).to eq 2
+      expect(package('dummypkg')).to be_installed
+
+      packages_state = get_packages_state default_node
+      # our packages except dummypkg are held
+      # dummypkg is not held because it's just been installed: aptly_purge bails out when, package-wise,
+      # catalog and system are not in sync
+      held_packages = managed_packages - ['dummypkg']
+      expect(packages_state.values_at(*held_packages)).to eq(['hold'] * held_packages.length)
+      # everything else is not held
+      expect(packages_state.values_at(*(packages_state.keys - held_packages))).not_to include('hold')
     end
   end
 end
