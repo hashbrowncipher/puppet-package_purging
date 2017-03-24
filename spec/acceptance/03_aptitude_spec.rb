@@ -33,17 +33,23 @@ describe 'aptitude tests -' do
       'puppetlabs-release-pc1',
       'puppet-agent',
       'openssh-server',
-      'dict-jargon',
-      'fortunes',
+      'dummypkg',
     ]
     @package_versions = {}
 
     hosts.each do |host|
+      localpath = File.dirname(__FILE__) + '/fixtures'
+      remotepath = '/usr/local/localrepo'
+      on host, "mkdir #{remotepath}"
+      1.upto 3 do |n|
+        scp_to host, "#{localpath}/dummypkg_0.0.#{n}_all.deb", remotepath
+      end
+      scp_to host, "#{localpath}/Packages.gz", remotepath
+      scp_to host, "#{localpath}/localrepo.list", '/etc/apt/sources.list.d'
+      on host, "apt-get update -o Dir::Etc::sourcelist=sources.list.d/localrepo.list -o Dir::Etc::sourceparts=- -o APT::Get::List-Cleanup=0"
+
       install_package host, 'aptitude'
-      install_package host, 'dict-jargon'
-      expect(check_for_package host, 'dictd').to be true
-      install_package host, 'fortunes'
-      expect(check_for_package host, 'fortunes-min').to be true
+      install_package host, 'dummypkg'
       # same as `include package_purging::config`, saves a Puppet run
       create_remote_file host, '/etc/apt/apt.conf.d/99always-purge', "APT::Get::Purge \"true\";\n";
 
@@ -56,16 +62,6 @@ describe 'aptitude tests -' do
       end
       packages_state = get_packages_state default_node
       expect(packages_state.values_at(*@managed_packages)).to eq(['install'] * @managed_packages.length)
-
-      localpath = File.dirname(__FILE__) + '/fixtures'
-      remotepath = '/usr/local/localrepo'
-      on host, "mkdir #{remotepath}"
-      1.upto 3 do |n|
-        scp_to host, "#{localpath}/dummypkg_0.0.#{n}_all.deb", remotepath
-      end
-      scp_to host, "#{localpath}/Packages.gz", remotepath
-      scp_to host, "#{localpath}/localrepo.list", '/etc/apt/sources.list.d'
-      on host, "apt-get update -o Dir::Etc::sourcelist=sources.list.d/localrepo.list -o Dir::Etc::sourceparts=- -o APT::Get::List-Cleanup=0"
     end
   end
 
@@ -92,17 +88,17 @@ describe 'aptitude tests -' do
     end
   end
 
-  context 'fortunes installed via aptitude' do
+  context 'dummypkg installed via aptitude' do
     it 'produces a noop puppet run' do
       managed_packages = @managed_packages
-      pinned_packages = managed_packages - ['fortunes']
+      pinned_packages = managed_packages - ['dummypkg']
       m = pinned_packages.map do |p|
         "package { '#{p}': ensure => '#{@package_versions[p]}' }"
       end.join("\n")
-      p = 'fortunes'
+      p = 'dummypkg'
       m += <<-EOS
 
-        package{'fortunes':
+        package{'#{p}':
           ensure => '#{@package_versions[p]}',
           provider => 'aptitude',
         }
