@@ -56,6 +56,16 @@ describe 'aptitude tests -' do
       end
       packages_state = get_packages_state default_node
       expect(packages_state.values_at(*@managed_packages)).to eq(['install'] * @managed_packages.length)
+
+      localpath = File.dirname(__FILE__) + '/fixtures'
+      remotepath = '/usr/local/localrepo'
+      on host, "mkdir #{remotepath}"
+      1.upto 3 do |n|
+        scp_to host, "#{localpath}/dummypkg_0.0.#{n}_all.deb", remotepath
+      end
+      scp_to host, "#{localpath}/Packages.gz", remotepath
+      scp_to host, "#{localpath}/localrepo.list", '/etc/apt/sources.list.d'
+      on host, "apt-get update -o Dir::Etc::sourcelist=sources.list.d/localrepo.list -o Dir::Etc::sourceparts=- -o APT::Get::List-Cleanup=0"
     end
   end
 
